@@ -1,0 +1,16 @@
+[Unit]
+Description=NeonVault Discord Casino Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Edit these two paths for your setup:
+WorkingDirectory=/home/youruser/gambling-bot
+ExecStart=/home/youruser/gambling-bot/venv/bin/python3 main.py
+Restart=always
+RestartSec=5
+User=youruser
+
+[Install]
+WantedBy=multi-user.target

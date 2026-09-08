@@ -12,7 +12,7 @@ from config import BOT_NAME
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = os.getenv("PREFIX", "!")
+PREFIX = os.getenv("PREFIX", ".")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,15 +72,44 @@ INITIAL_EXTENSIONS = [
 
 def build_bot() -> commands.Bot:
     bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
+    bot._synced = False
 
     @bot.event
     async def on_ready():
         log.info(f"Logged in as {bot.user} ({bot.user.id})")
         await bot.change_presence(activity=discord.Game(name=f"{PREFIX}help | {BOT_NAME}"))
+        if not bot._synced:
+            try:
+                synced = await bot.tree.sync()
+                log.info(f"Synced {len(synced)} slash commands.")
+                bot._synced = True
+            except Exception:
+                log.exception("Failed to sync slash commands.")
 
     @bot.event
     async def on_disconnect():
         log.warning("Disconnected from Discord — discord.py will attempt to reconnect automatically.")
+
+    @bot.event
+    async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+        if isinstance(error, commands.CommandNotFound):
+            return
+        log.exception(f"Command error in '{ctx.command}': {error}")
+        try:
+            await ctx.send(f"⚠️ Something went wrong running that command: `{error}`")
+        except discord.HTTPException:
+            pass
+
+    @bot.tree.error
+    async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        log.exception(f"App command error in '{interaction.command}': {error}")
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(f"⚠️ Something went wrong: `{error}`", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"⚠️ Something went wrong: `{error}`", ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     return bot
 

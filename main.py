@@ -35,6 +35,7 @@ INITIAL_EXTENSIONS = [
     "cogs.economy",
     "cogs.admin",
     "cogs.help",
+    "cogs.feedback",
     "cogs.games.coinflip",
     "cogs.games.dice",
     "cogs.games.slots",

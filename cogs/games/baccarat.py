@@ -1,4 +1,5 @@
 import asyncio
+import io
 
 import discord
 from discord import app_commands
@@ -7,6 +8,7 @@ from discord.ext import commands
 import database as db
 from utils import resolve_bet, BetError, Deck, hand_str
 from animations import suspense
+from imaging import render_two_hand_table
 from config import fmt, win_embed, lose_embed, error_embed, base_embed, info_embed, COLOR_PRIMARY
 
 
@@ -75,18 +77,21 @@ class Baccarat(commands.Cog):
         await db.record_result(ctx.author.id, payout, won)
         new_bal = await db.get_balance(ctx.author.id)
 
-        desc = (
-            f"Player: {hand_str(player_cards)} = **{p_val}**\n"
-            f"Banker: {hand_str(banker_cards)} = **{b_val}**\n"
-            f"Winner: **{winner}**\n\n"
-        )
+        desc = f"Winner: **{winner}**\n\n"
         if multiplier == 1.0:
             e = info_embed("Push — Tie", desc + f"Your bet was refunded.\nBalance: {fmt(new_bal)}")
         elif won:
             e = win_embed("You Won!", desc + f"You won **{fmt(payout)}** ({multiplier}x)\nBalance: {fmt(new_bal)}")
         else:
             e = lose_embed("You Lost", desc + f"You lost **{fmt(amount)}**\nBalance: {fmt(new_bal)}")
-        await msg.edit(embed=e)
+
+        img_bytes = render_two_hand_table(
+            f"PLAYER ({p_val})", [str(c) for c in player_cards],
+            f"BANKER ({b_val})", [str(c) for c in banker_cards],
+        )
+        file = discord.File(io.BytesIO(img_bytes), filename="baccarat.png")
+        e.set_image(url="attachment://baccarat.png")
+        await msg.edit(embed=e, attachments=[file])
 
 
 async def setup(bot: commands.Bot):

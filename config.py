@@ -12,6 +12,7 @@ CURRENCY_EMOJI = "🔷"
 STARTING_BALANCE = 1000
 DAILY_AMOUNT = 500
 DAILY_COOLDOWN_HOURS = 24
+MIN_CASHOUT_MULTIPLIER = 1.1  # can't cash out below this in crash/mines/balloon/hilo/etc.
 
 # ---- Colors ----
 COLOR_PRIMARY = 0x7C3AED   # violet

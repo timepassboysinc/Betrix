@@ -7,7 +7,7 @@ from discord.ext import commands
 
 import database as db
 from utils import resolve_bet, BetError
-from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, E_ROCKET
+from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, E_ROCKET, MIN_CASHOUT_MULTIPLIER
 
 HOUSE_EDGE = 0.03
 
@@ -26,7 +26,7 @@ class CrashView(discord.ui.View):
         super().__init__(timeout=30)
         self.ctx = ctx
         self.bet = bet
-        self.cashed_out = False
+        self.resolved = False
         self.current_mult = 1.0
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -37,11 +37,33 @@ class CrashView(discord.ui.View):
 
     @discord.ui.button(label="Cash Out", style=discord.ButtonStyle.success, emoji="💰")
     async def cash_out(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.cashed_out:
+        if self.resolved:
             return
-        self.cashed_out = True
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
+        if self.current_mult < MIN_CASHOUT_MULTIPLIER:
+            await interaction.response.send_message(
+                f"You can cash out starting at {MIN_CASHOUT_MULTIPLIER}x — hang on just a moment longer!",
+                ephemeral=True,
+            )
+            return
+
+        self.resolved = True
+        for c in self.children:
+            c.disabled = True
+        payout = int(self.bet * self.current_mult)
+        await db.record_result(self.ctx.author.id, payout, True)
+        new_bal = await db.get_balance(self.ctx.author.id)
+        await interaction.response.edit_message(
+            embed=win_embed(
+                f"Cashed Out at {self.current_mult}x!",
+                f"You won **{fmt(payout)}**\nBalance: {fmt(new_bal)}",
+            ),
+            view=None,
+        )
+        self.stop()
+
+    async def on_timeout(self):
+        for c in self.children:
+            c.disabled = True
 
 
 class Crash(commands.Cog):
@@ -67,25 +89,16 @@ class Crash(commands.Cog):
         )
 
         mult = 1.0
-        while True:
+        while not view.resolved:
             await asyncio.sleep(0.7)
+            if view.resolved:
+                return  # cashed out mid-sleep — the button callback already handled everything
+
             mult = round(mult + max(0.05, mult * 0.12), 2)
             view.current_mult = mult
 
-            if view.cashed_out:
-                payout = int(amount * mult)
-                await db.record_result(ctx.author.id, payout, True)
-                new_bal = await db.get_balance(ctx.author.id)
-                await msg.edit(
-                    embed=win_embed(
-                        f"Cashed Out at {mult}x!",
-                        f"You won **{fmt(payout)}**\nBalance: {fmt(new_bal)}",
-                    ),
-                    view=None,
-                )
-                return
-
             if mult >= crash_point:
+                view.resolved = True
                 for c in view.children:
                     c.disabled = True
                 await db.record_result(ctx.author.id, 0, False)

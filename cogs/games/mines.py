@@ -7,7 +7,7 @@ from discord.ext import commands
 
 import database as db
 from utils import resolve_bet, BetError
-from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY
+from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, MIN_CASHOUT_MULTIPLIER
 
 ROWS, COLS = 4, 5
 TOTAL_TILES = ROWS * COLS
@@ -125,8 +125,14 @@ class MinesView(discord.ui.View):
     async def cash_out(self, interaction: discord.Interaction):
         if self.over:
             return
-        self.over = True
         mult = self.current_multiplier()
+        if mult < MIN_CASHOUT_MULTIPLIER:
+            await interaction.response.send_message(
+                f"You need at least {MIN_CASHOUT_MULTIPLIER}x to cash out — reveal one more tile!",
+                ephemeral=True,
+            )
+            return
+        self.over = True
         payout = int(self.bet * mult)
         self.reveal_all()
         await db.record_result(self.ctx.author.id, payout, True)

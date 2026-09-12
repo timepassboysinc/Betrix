@@ -6,7 +6,7 @@ from discord.ext import commands
 
 import database as db
 from utils import resolve_bet, BetError
-from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, COLOR_GOLD
+from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, COLOR_GOLD, MIN_CASHOUT_MULTIPLIER
 
 STEP_MULTIPLIER = 1.9
 
@@ -53,6 +53,12 @@ class ProgressiveCoinflipView(discord.ui.View):
 
     @discord.ui.button(label="Cash Out", emoji="💰", style=discord.ButtonStyle.success)
     async def cash_out(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.multiplier < MIN_CASHOUT_MULTIPLIER:
+            await interaction.response.send_message(
+                f"You need at least {MIN_CASHOUT_MULTIPLIER}x to cash out — flip at least once more!",
+                ephemeral=True,
+            )
+            return
         for c in self.children:
             c.disabled = True
         payout = int(self.bet * self.multiplier)

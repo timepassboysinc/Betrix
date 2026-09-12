@@ -258,3 +258,59 @@ def render_blackjack_table(player_cards: list[str], dealer_cards: list[str], hid
     img.convert("RGB").save(buf, format="PNG")
     buf.seek(0)
     return buf.read()
+
+
+def render_single_hand(label: str, cards: list[str]) -> bytes:
+    """One row of face-up cards with a label above — used for video poker."""
+    card_w, gap = 90, 14
+    W = max(400, len(cards) * (card_w + gap) + 80)
+    H = 200
+
+    bg = _vertical_gradient((W, H), (35, 20, 55), (14, 10, 26)).convert("RGBA")
+    mask = _rounded_mask((W, H), 24)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    img.paste(bg, (0, 0), mask)
+    d = ImageDraw.Draw(img)
+
+    d.text((40, 20), label, font=_font(22, bold=True), fill=(230, 230, 235))
+    x = 40
+    for c in cards:
+        _draw_card(img, (x, 55), c)
+        x += card_w + gap
+
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, format="PNG")
+    buf.seek(0)
+    return buf.read()
+
+
+def render_two_hand_table(top_label: str, top_cards: list[str], bottom_label: str, bottom_cards: list[str]) -> bytes:
+    """Two labeled rows of face-up cards, no hidden cards — used for baccarat (Player vs Banker)."""
+    card_w, gap = 90, 14
+    row_w = max(len(top_cards), len(bottom_cards)) * (card_w + gap)
+    W = max(600, row_w + 80)
+    H = 380
+
+    bg = _vertical_gradient((W, H), (40, 20, 20), (16, 8, 8)).convert("RGBA")
+    mask = _rounded_mask((W, H), 24)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    img.paste(bg, (0, 0), mask)
+    d = ImageDraw.Draw(img)
+
+    f_label = _font(22, bold=True)
+    d.text((40, 20), top_label, font=f_label, fill=(230, 230, 235))
+    x = 40
+    for c in top_cards:
+        _draw_card(img, (x, 50), c)
+        x += card_w + gap
+
+    d.text((40, 195), bottom_label, font=f_label, fill=(230, 230, 235))
+    x = 40
+    for c in bottom_cards:
+        _draw_card(img, (x, 225), c)
+        x += card_w + gap
+
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, format="PNG")
+    buf.seek(0)
+    return buf.read()

@@ -1,4 +1,5 @@
 from collections import Counter
+import io
 
 import discord
 from discord import app_commands
@@ -6,6 +7,7 @@ from discord.ext import commands
 
 import database as db
 from utils import resolve_bet, BetError, Deck, Card, hand_str
+from imaging import render_single_hand
 from config import fmt, win_embed, lose_embed, error_embed, base_embed, COLOR_PRIMARY, COLOR_GOLD
 
 VALUE_MAP = {"A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13}
@@ -94,6 +96,10 @@ class PokerView(discord.ui.View):
             return False
         return True
 
+    def _image_file(self, label: str = "YOUR HAND") -> discord.File:
+        img_bytes = render_single_hand(label, [str(c) for c in self.hand])
+        return discord.File(io.BytesIO(img_bytes), filename="poker.png")
+
     async def draw(self, interaction: discord.Interaction):
         for i in range(5):
             if not self.held[i]:
@@ -108,14 +114,16 @@ class PokerView(discord.ui.View):
         for c in self.children:
             c.disabled = True
 
-        desc = f"Final hand: {hand_str(self.hand)}\n**{name}**\n\n"
+        desc = f"**{name}**\n\n"
         if won:
             e = win_embed("You Won!", desc + f"Payout: {multiplier}x — You won **{fmt(payout)}**\nBalance: {fmt(new_bal)}")
             if multiplier >= 25:
                 e.color = COLOR_GOLD
         else:
             e = lose_embed("No Win", desc + f"You lost **{fmt(self.bet)}**\nBalance: {fmt(new_bal)}")
-        await interaction.response.edit_message(embed=e, view=self)
+        file = self._image_file("FINAL HAND")
+        e.set_image(url="attachment://poker.png")
+        await interaction.response.edit_message(embed=e, view=self, attachments=[file])
         self.stop()
 
     async def on_timeout(self):
@@ -143,11 +151,13 @@ class Poker(commands.Cog):
         table = "\n".join(f"{name}: {mult}x" for name, mult in PAYTABLE)
         e = base_embed(
             "🃏 Video Poker",
-            f"Your hand: {hand_str(hand)}\n\nTap cards to **hold**, then hit **Draw**.\n\n**Paytable**\n{table}",
+            f"Tap cards to **hold**, then hit **Draw**.\n\n**Paytable**\n{table}",
             COLOR_PRIMARY,
         )
         view = PokerView(ctx, deck, hand, amount)
-        await ctx.send(embed=e, view=view)
+        file = view._image_file("YOUR HAND")
+        e.set_image(url="attachment://poker.png")
+        await ctx.send(embed=e, file=file, view=view)
 
 
 async def setup(bot: commands.Bot):
